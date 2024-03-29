@@ -136,11 +136,12 @@ int main(int argc, char *argv[])
     PageTable pageTable;
     initializePageTable(&pageTable);
     printPageTable(&pageTable);
-    int addresses[20];
+    int addresses[20]; //this contains all virtual addresses
     generateRandom(&pageTable, addresses, 20);
     for (int i=0; i<20; i++) {
         printf("%d ",addresses[i]);
     }
+    printf("\n");
     printPageTable(&pageTable);
     return 0;
     //sequence?: generate virtual addresses (referencing a certain page), then reference certain virtual addresses (and add the pages to the page table; which reference the physical location of the page), and when the page table gets full, use clock algorithm to replace page table entries 
