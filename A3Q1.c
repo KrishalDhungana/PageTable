@@ -7,7 +7,7 @@
 
 #define VIRTUALSIZE 100
 #define NUMBEROFPAGES 12
-#define PHYSICALSIZE 200
+#define PHYSICALSIZE 50
 const int PAGESIZE = VIRTUALSIZE / NUMBEROFPAGES;  //size of pages = size of page frames
 const int NUMBEROFFRAMES = PHYSICALSIZE / PAGESIZE; //if number of frames < number of pages, we need to implement disk and clock algorithm
 
@@ -136,9 +136,10 @@ int main(int argc, char *argv[])
     PageTable pageTable;
     initializePageTable(&pageTable);
     printPageTable(&pageTable);
-    int addresses[20]; //this contains all virtual addresses
-    generateRandom(&pageTable, addresses, 20);
-    for (int i=0; i<20; i++) {
+    int numAddresses = 10;
+    int addresses[numAddresses]; //this contains all virtual addresses
+    generateRandom(&pageTable, addresses, numAddresses);
+    for (int i=0; i<numAddresses; i++) {
         printf("%d ",addresses[i]);
     }
     printf("\n");
