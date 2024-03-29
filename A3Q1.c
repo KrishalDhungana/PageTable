@@ -27,29 +27,46 @@ typedef struct {
     //So, a virtual address should have 4 bits for page number and 3 bits for offset 
 } PageTable;
 
-int setPageTableEntry(PageTable* pageTable, PageTableEntry* entry, int frameNumber, int presentBit, int useBit) {
-    if (frameNumber < -1 || frameNumber >= NUMBEROFFRAMES) {
-        fprintf(stderr, "Error: Frame number %d is out of bounds (0 - %d).\n", frameNumber, NUMBEROFFRAMES - 1);
-        return -1; 
+// sets a page table entry for a specific VPN
+int setPageTableEntry(PageTable* pageTable, int VPN) {
+    // Check if the VPN already has a frame mapped to it and if so, leave it alone
+    if (pageTable->entries[VPN].frameNumber != -1) {
+        // Entry is already mapped
+        printf("Page %d has already been mapped to frame %d\n", VPN, pageTable->entries[VPN].frameNumber);
+        return 0; // Success, nothing to do
     }
-    if (presentBit != 0 && presentBit != 1) {
-        fprintf(stderr, "Error: Present bit %d is not valid. Must be 0 or 1.\n", presentBit);
-        return -1;
+
+    // find the lowest unused frame number
+    int frameNumber;
+    for (frameNumber = 0; frameNumber < NUMBEROFFRAMES; ++frameNumber) {
+        int isUsed = 0;
+        for (int i = 0; i < NUMBEROFPAGES; ++i) {
+            if (pageTable->entries[i].frameNumber == frameNumber) {
+                isUsed = 1;
+                break;
+            }
+        }
+        if (!isUsed) {
+            break; // found unused frame number
+        }
     }
-    if (useBit != 0 && useBit != 1) {
-        fprintf(stderr, "Error: Use bit %d is not valid. Must be 0 or 1.\n", useBit);
-        return -1;
+    if (frameNumber == NUMBEROFFRAMES) {
+        fprintf(stderr, "Error: No available frames to map to VPN %d\n", VPN);
+        //call clock algorithm to evict an existing page and take its page frame number: frame number = clockalgorithm()
+        return -1;  //remove this once clock algorithm is in place.
     }
-    entry->frameNumber = frameNumber;
-    entry->presentBit = presentBit;
-    entry->useBit = useBit;
-    return 0; // return 0 if all insertions are successful
+    pageTable->entries[VPN].frameNumber = frameNumber;
+    pageTable->entries[VPN].presentBit = 1;
+    pageTable->entries[VPN].useBit = 1;
+    printf("Page %d has been successfully mapped to frame %d\n", VPN, frameNumber);
+    return 0; // Success
 }
 
 void initializePageTable(PageTable* pageTable) {
     for (int i = 0; i < NUMBEROFPAGES; ++i) {
-             // set all values to 0 at the start since no pages exist in physical memory yet
-             setPageTableEntry(pageTable, &pageTable->entries[i], -1,0,0);
+        pageTable->entries[i].frameNumber = -1;
+        pageTable->entries[i].presentBit = 0;
+        pageTable->entries[i].useBit = 0;
     }
 }
 
@@ -89,7 +106,7 @@ bool isAddressUnique(int addresses[], int n, int address) {
 //add to page table 
 
 
-void generateRandom(int addresses[], int n) {
+void generateRandom(PageTable* pageTable, int addresses[], int n) {
     int pageBits = bitsNeeded(NUMBEROFPAGES);
     int offsetBits = bitsNeeded(PAGESIZE);
     int maxUniqueAddresses = NUMBEROFPAGES * PAGESIZE; // Maximum possible unique addresses
@@ -107,6 +124,7 @@ void generateRandom(int addresses[], int n) {
         } while (!isAddressUnique(addresses, i, virtualAddress));
         addresses[i] = virtualAddress;
         printf("VPN = %d & offset = %d, virtual address: %d\n", VPN, offset, virtualAddress);
+        setPageTableEntry(pageTable, VPN);
     }
 }
 
@@ -119,10 +137,11 @@ int main(int argc, char *argv[])
     initializePageTable(&pageTable);
     printPageTable(&pageTable);
     int addresses[20];
-    generateRandom(addresses, 20);
+    generateRandom(&pageTable, addresses, 20);
     for (int i=0; i<20; i++) {
         printf("%d ",addresses[i]);
     }
+    printPageTable(&pageTable);
     return 0;
     //sequence?: generate virtual addresses (referencing a certain page), then reference certain virtual addresses (and add the pages to the page table; which reference the physical location of the page), and when the page table gets full, use clock algorithm to replace page table entries 
 
