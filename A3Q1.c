@@ -6,10 +6,12 @@
 #include <stdbool.h>
 
 #define VIRTUALSIZE 100
-#define NUMBEROFPAGES 12
+#define NUMBEROFPAGES 8
 #define PHYSICALSIZE 50
+#define VIRTUALADDRESSES 11 // number of virtual addresses
 const int PAGESIZE = VIRTUALSIZE / NUMBEROFPAGES;  //size of pages = size of page frames
 const int NUMBEROFFRAMES = PHYSICALSIZE / PAGESIZE; //if number of frames < number of pages, we need to implement disk and clock algorithm
+int CLOCKINDEX=0;
 
 typedef struct {
     int frameNumber; // corresponds to frame (in physical memory) containing page
@@ -27,12 +29,29 @@ typedef struct {
     //So, a virtual address should have 4 bits for page number and 3 bits for offset 
 } PageTable;
 
+int clockAlgorithm(PageTable* pageTable) {
+    while (true) {
+        if (pageTable->entries[CLOCKINDEX].useBit == 0 && pageTable->entries[CLOCKINDEX].frameNumber != -1) {
+            int frame = pageTable->entries[CLOCKINDEX].frameNumber;
+            pageTable->entries[CLOCKINDEX].frameNumber = -1;
+            pageTable->entries[CLOCKINDEX].useBit = 0;
+            pageTable->entries[CLOCKINDEX].presentBit = 0;
+            printf("We evicted page %d, which had frame %d\n", CLOCKINDEX, frame);
+            return frame;
+        }
+        pageTable->entries[CLOCKINDEX].useBit = 0;
+        CLOCKINDEX = (CLOCKINDEX+1)%NUMBEROFPAGES; //increments clock index and loops back to beginning if at the end of the page table
+    }
+}
+
 // sets a page table entry for a specific VPN
 int setPageTableEntry(PageTable* pageTable, int VPN) {
     // Check if the VPN already has a frame mapped to it and if so, leave it alone
     if (pageTable->entries[VPN].frameNumber != -1) {
         // Entry is already mapped
         printf("Page %d has already been mapped to frame %d\n", VPN, pageTable->entries[VPN].frameNumber);
+        pageTable->entries[VPN].presentBit = 1;
+        pageTable->entries[VPN].useBit = 1;
         return 0; // Success, nothing to do
     }
 
@@ -50,10 +69,14 @@ int setPageTableEntry(PageTable* pageTable, int VPN) {
             break; // found unused frame number
         }
     }
+    //assume 4 pages: 0 1 2 3
+    // assume we have 2 page frames: 0 and 1
+    // assume page 1 is mapped to page frame 0
+    // assume page frame 1 is free
+    // assume we want to insert 
     if (frameNumber == NUMBEROFFRAMES) {
         fprintf(stderr, "Error: No available frames to map to VPN %d\n", VPN);
-        //call clock algorithm to evict an existing page and take its page frame number: frame number = clockalgorithm()
-        return -1;  //remove this once clock algorithm is in place.
+        frameNumber = clockAlgorithm(pageTable);
     }
     pageTable->entries[VPN].frameNumber = frameNumber;
     pageTable->entries[VPN].presentBit = 1;
@@ -61,6 +84,7 @@ int setPageTableEntry(PageTable* pageTable, int VPN) {
     printf("Page %d has been successfully mapped to frame %d\n", VPN, frameNumber);
     return 0; // Success
 }
+
 
 void initializePageTable(PageTable* pageTable) {
     for (int i = 0; i < NUMBEROFPAGES; ++i) {
@@ -71,7 +95,6 @@ void initializePageTable(PageTable* pageTable) {
 }
 
 void printPageTable(PageTable* pageTable) {
-    printf("Page Table Entries:\n");
     for (int i = 0; i < NUMBEROFPAGES; ++i) {
         printf("Page %d: Frame Number: %d, Present Bit: %d, Use Bit: %d\n", 
                i, pageTable->entries[i].frameNumber, 
@@ -103,12 +126,41 @@ bool isAddressUnique(int addresses[], int n, int address) {
     return true; // Unique address
 }
 
-//add to page table 
+//THIS FUNCTION IS CURRENTLY NOT CALLED ANYWHERE IN THIS CODE.
+//function used to translate specific virtual address to physical address using the page table
+int translation(PageTable* pageTable, int VPN, int virtualAddress) { 
+    int PFN = pageTable->entries[VPN].frameNumber; //page frame number
+    //**int PFNbits = bitsNeeded(NUMBEROFFRAMES); //get the number of bits required for the PFN
+    int offsetBits = bitsNeeded(PAGESIZE-1); //get the number of bits required for the offset
+    int mask = 1; //00000001
+    for (int i = 0; i < offsetBits-1; i++){ //create the mask 
+        mask = mask << 1; //shift bit left once
+        mask = mask | 1; //add on a 1 to the end
+    }
+    
+    int offsetVal = virtualAddress & mask; //get the offset value. Which is the bits in the virtualAddress that represent the offset
+    int physicalAddress = PFN << offsetBits | offsetVal; //left shift by the number of bits needed for the offset then OR with the offset value. physicalAddress = PFN + offset
+    printf("Physical Address = %d, PFN = %d & mask = %d & offset = %d \n\n", physicalAddress, PFN, mask, offsetVal);
+
+    // int failedInput = 0;
+    // for(int i = 0; i < VIRTUALADDRESSES; i++){ //get an index that is empty to store the address into
+    //     if(physAddresses[i] == -1){
+    //         physAddresses[i] = physicalAddress;
+    //         failedInput = 1; //indicate array succeeded to find a spot to input physcial address into the array
+    //         printf("address %d stored into index %d\n", physicalAddress, i);
+    //         break; //exit for loop
+    //     } 
+    // }
+
+    // if(failedInput == 0) printf("Failure: did not input physcial address into array"); //is it necessary to consider the case of if the array if full? is that already considered when dealing with the page table?
+
+    return physicalAddress;
+}
 
 
 void generateRandom(PageTable* pageTable, int addresses[], int n) {
-    int pageBits = bitsNeeded(NUMBEROFPAGES);
-    int offsetBits = bitsNeeded(PAGESIZE);
+    int pageBits = bitsNeeded(NUMBEROFPAGES-1);
+    int offsetBits = bitsNeeded(PAGESIZE-1);
     int maxUniqueAddresses = NUMBEROFPAGES * PAGESIZE; // Maximum possible unique addresses
     if (n > maxUniqueAddresses) {
         printf("Requested number of unique addresses exceeds the available address space.\n");
@@ -123,8 +175,9 @@ void generateRandom(PageTable* pageTable, int addresses[], int n) {
             virtualAddress = (VPN << shiftAmount) | offset;
         } while (!isAddressUnique(addresses, i, virtualAddress));
         addresses[i] = virtualAddress;
-        printf("VPN = %d & offset = %d, virtual address: %d\n", VPN, offset, virtualAddress);
+        printf("Virtual Address = %d, VPN = %d & offset = %d\n", virtualAddress, VPN, offset);
         setPageTableEntry(pageTable, VPN);
+        int physicalAddress = translation(pageTable,VPN,virtualAddress);
     }
 }
 
@@ -135,15 +188,19 @@ int main(int argc, char *argv[])
     // do we assume physical memory space is larger than virtual memory space (i.e., all pages can be stored in physical memory at once?)
     PageTable pageTable;
     initializePageTable(&pageTable);
+    printf("Initial page table: \n");
     printPageTable(&pageTable);
-    int numAddresses = 10;
-    int addresses[numAddresses]; //this contains all virtual addresses
-    generateRandom(&pageTable, addresses, numAddresses);
-    for (int i=0; i<numAddresses; i++) {
-        printf("%d ",addresses[i]);
-    }
     printf("\n");
+    int addresses[VIRTUALADDRESSES]; //this contains all virtual addresses
+    generateRandom(&pageTable, addresses, VIRTUALADDRESSES);
+    printf("Final page table: \n");
     printPageTable(&pageTable);
+
+    // int physAddresses[VIRTUALADDRESSES]; //this contains all the physical addresses
+    // for(int y=0; y<VIRTUALADDRESSES; y++){ //initilize array for physcial addresses as all being -1 to indicate no address has been stored in them
+    //     physAddresses[y] = -1;
+    // }
+
     return 0;
     //sequence?: generate virtual addresses (referencing a certain page), then reference certain virtual addresses (and add the pages to the page table; which reference the physical location of the page), and when the page table gets full, use clock algorithm to replace page table entries 
 
