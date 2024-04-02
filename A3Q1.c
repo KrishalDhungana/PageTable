@@ -29,17 +29,18 @@ typedef struct {
     //So, a virtual address should have 4 bits for page number and 3 bits for offset 
 } PageTable;
 
-int clockAlgorithm(PageTable* pageTable) {
+int clockAlgorithm(PageTable* pageTable) { //clock algorithm used to decide which page to evict when memory is full and virtual address needs to be mapped to physcial address
     while (true) {
+        //frame number must not be -1. If = -1, this means virtual address is not mapped and therefore there is no physical address to evict
         if (pageTable->entries[CLOCKINDEX].useBit == 0 && pageTable->entries[CLOCKINDEX].frameNumber != -1) {
-            int frame = pageTable->entries[CLOCKINDEX].frameNumber;
+            int frame = pageTable->entries[CLOCKINDEX].frameNumber; //get number of frame we are evicting
             pageTable->entries[CLOCKINDEX].frameNumber = -1;
             pageTable->entries[CLOCKINDEX].useBit = 0;
             pageTable->entries[CLOCKINDEX].presentBit = 0;
             printf("We evicted page %d, which had frame %d\n", CLOCKINDEX, frame);
             return frame;
         }
-        pageTable->entries[CLOCKINDEX].useBit = 0;
+        pageTable->entries[CLOCKINDEX].useBit = 0; //if useBit was at 1, change to 0 and keep running
         CLOCKINDEX = (CLOCKINDEX+1)%NUMBEROFPAGES; //increments clock index and loops back to beginning if at the end of the page table
     }
 }
@@ -69,12 +70,8 @@ int setPageTableEntry(PageTable* pageTable, int VPN) {
             break; // found unused frame number
         }
     }
-    //assume 4 pages: 0 1 2 3
-    // assume we have 2 page frames: 0 and 1
-    // assume page 1 is mapped to page frame 0
-    // assume page frame 1 is free
-    // assume we want to insert 
-    if (frameNumber == NUMBEROFFRAMES) {
+
+    if (frameNumber == NUMBEROFFRAMES) { //if true, indicates no space left in physcial memory
         fprintf(stderr, "Error: No available frames to map to VPN %d\n", VPN);
         frameNumber = clockAlgorithm(pageTable);
     }
@@ -126,19 +123,18 @@ bool isAddressUnique(int addresses[], int n, int address) {
     return true; // Unique address
 }
 
-//THIS FUNCTION IS CURRENTLY NOT CALLED ANYWHERE IN THIS CODE.
-//function used to translate specific virtual address to physical address using the page table
+
+//translates specific virtual address to physical address using the page table
 int translation(PageTable* pageTable, int VPN, int virtualAddress) { 
-    int PFN = pageTable->entries[VPN].frameNumber; //page frame number
-    //**int PFNbits = bitsNeeded(NUMBEROFFRAMES); //get the number of bits required for the PFN
+    int PFN = pageTable->entries[VPN].frameNumber; //get the page frame number
     int offsetBits = bitsNeeded(PAGESIZE-1); //get the number of bits required for the offset
-    int mask = 1; //00000001
+    int mask = 1;
     for (int i = 0; i < offsetBits-1; i++){ //create the mask 
         mask = mask << 1; //shift bit left once
-        mask = mask | 1; //add on a 1 to the end
+        mask = mask | 1; //add on a 1 to the end by ORing
     }
     
-    int offsetVal = virtualAddress & mask; //get the offset value. Which is the bits in the virtualAddress that represent the offset
+    int offsetVal = virtualAddress & mask; //get the offset value. Which is the bit form of the virtualAddress that represent the offset
     int physicalAddress = PFN << offsetBits | offsetVal; //left shift by the number of bits needed for the offset then OR with the offset value. physicalAddress = PFN + offset
     printf("Physical Address = %d, PFN = %d & mask = %d & offset = %d \n\n", physicalAddress, PFN, mask, offsetVal);
 
