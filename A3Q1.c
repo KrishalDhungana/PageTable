@@ -22,11 +22,6 @@ typedef struct {
 
 typedef struct {
     PageTableEntry entries[NUMBEROFPAGES]; 
-    //page table has NUMBEROFPAGES entries, each of size 256/10
-    //in a virtual address, we need to specify the page number and offset.
-    //page number can vary from 0 (0000) to 11 (1011) (since we have 12 pages)
-    //offset can vary from 0 (000) to 7 (111) (??round down??)
-    //So, a virtual address should have 4 bits for page number and 3 bits for offset 
 } PageTable;
 
 int clockAlgorithm(PageTable* pageTable) { //clock algorithm used to decide which page to evict when memory is full and virtual address needs to be mapped to physcial address
@@ -138,18 +133,6 @@ int translation(PageTable* pageTable, int VPN, int virtualAddress) {
     int physicalAddress = PFN << offsetBits | offsetVal; //left shift by the number of bits needed for the offset then OR with the offset value. physicalAddress = PFN + offset
     printf("Physical Address = %d, PFN = %d & mask = %d & offset = %d \n\n", physicalAddress, PFN, mask, offsetVal);
 
-    // int failedInput = 0;
-    // for(int i = 0; i < VIRTUALADDRESSES; i++){ //get an index that is empty to store the address into
-    //     if(physAddresses[i] == -1){
-    //         physAddresses[i] = physicalAddress;
-    //         failedInput = 1; //indicate array succeeded to find a spot to input physcial address into the array
-    //         printf("address %d stored into index %d\n", physicalAddress, i);
-    //         break; //exit for loop
-    //     } 
-    // }
-
-    // if(failedInput == 0) printf("Failure: did not input physcial address into array"); //is it necessary to consider the case of if the array if full? is that already considered when dealing with the page table?
-
     return physicalAddress;
 }
 
@@ -178,10 +161,8 @@ void generateRandom(PageTable* pageTable, int addresses[], int n) {
 }
 
 
-
 int main(int argc, char *argv[])
 {
-    // do we assume physical memory space is larger than virtual memory space (i.e., all pages can be stored in physical memory at once?)
     PageTable pageTable;
     initializePageTable(&pageTable);
     printf("Initial page table: \n");
@@ -192,12 +173,5 @@ int main(int argc, char *argv[])
     printf("Final page table: \n");
     printPageTable(&pageTable);
 
-    // int physAddresses[VIRTUALADDRESSES]; //this contains all the physical addresses
-    // for(int y=0; y<VIRTUALADDRESSES; y++){ //initilize array for physcial addresses as all being -1 to indicate no address has been stored in them
-    //     physAddresses[y] = -1;
-    // }
-
     return 0;
-    //sequence?: generate virtual addresses (referencing a certain page), then reference certain virtual addresses (and add the pages to the page table; which reference the physical location of the page), and when the page table gets full, use clock algorithm to replace page table entries 
-
 }
